@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+:root {
+  --surface: 0 0% 98%;
+  --surface-raised: 0 0% 100%;
+  --surface-hover: 0 0% 93%;
+  --accent: 262 83% 58%;
+  --accent-fg: 0 0% 100%;
+  --border: 0 0% 88%;
+  --text: 220 10% 14%;
+  --text-muted: 220 6% 42%;
+}
+
+.dark {
+  --surface: 230 12% 9%;
+  --surface-raised: 230 12% 13%;
+  --surface-hover: 230 12% 18%;
+  --accent: 262 83% 62%;
+  --accent-fg: 0 0% 100%;
+  --border: 230 10% 22%;
+  --text: 220 15% 92%;
+  --text-muted: 220 8% 62%;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: hsl(var(--surface));
+  color: hsl(var(--text));
+}
+
+input[type="range"] {
+  appearance: none;
+  background: transparent;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: hsl(var(--border));
+}
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  height: 14px;
+  width: 14px;
+  margin-top: -4px;
+  border-radius: 9999px;
+  border: 0;
+  background: hsl(var(--accent));
+}

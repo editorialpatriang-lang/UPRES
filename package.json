@@ -1,0 +1,31 @@
+{
+  "name": "upres",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "dev:turbo": "next dev --turbo",
+    "build": "next build",
+    "start": "next start",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "next": "15.1.6",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "lucide-react": "0.469.0",
+    "zustand": "5.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.7",
+    "@types/react": "19.0.7",
+    "@types/react-dom": "19.0.3",
+    "@tailwindcss/postcss": "4.0.0",
+    "tailwindcss": "4.0.0",
+    "typescript": "5.7.3",
+    "vitest": "2.1.9"
+  }
+}
