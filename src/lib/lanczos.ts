@@ -41,11 +41,14 @@ function linearToSrgb(c: number): number {
  * @param src buffer origen
  * @param scale factor (>1 para ampliar)
  * @param onProgress callback 0..1 (por tile)
+ * @param sharpness refuerzo del kernel (1 = neutro, >1 aumenta el contraste de borde).
+ *        No inventa detalle: solo modula la forma del kernel Lanczos.
  */
 export function lanczosScale(
   src: RgbaBuffer,
   scale: number,
-  onProgress?: (p: number) => void
+  onProgress?: (p: number) => void,
+  sharpness = 1
 ): RgbaBuffer {
   const { rgba, width: w, height: h } = src;
   const ow = Math.max(1, Math.round(w * scale));
@@ -53,8 +56,8 @@ export function lanczosScale(
   const out = new Uint8ClampedArray(ow * oh * 4);
 
   // Cache de pesos por columna/fila de salida para no recalcular.
-  const wX = precomputeWeights(w, ow, scale);
-  const wY = precomputeWeights(h, oh, scale);
+  const wX = precomputeWeights(w, ow, scale, sharpness);
+  const wY = precomputeWeights(h, oh, scale, sharpness);
 
   // Buffer de lineales por tile vertical para limitar memoria.
   const tileH = 256;
@@ -134,8 +137,10 @@ interface WeightMap {
   span: number;
 }
 
-/** Precomputa, para cada pixel de salida, los `span` pixeles de entrada y sus pesos. */
-function precomputeWeights(srcLen: number, outLen: number, scale: number): WeightMap {
+/** Precomputa, para cada pixel de salida, los `span` pixeles de entrada y sus pesos.
+ *  @param sharpness refuerzo del kernel (1 neutro). >1 reduce el ancho efectivo del
+ *         kernel (más nitidez/contraste de borde); <1 lo ensancha (más suave). */
+function precomputeWeights(srcLen: number, outLen: number, scale: number, sharpness = 1): WeightMap {
   const span = 2 * A;
   const map = new Array(outLen);
   const weights = new Array(outLen);
@@ -148,7 +153,8 @@ function precomputeWeights(srcLen: number, outLen: number, scale: number): Weigh
     for (let k = 0; k < span; k++) {
       const si = start + k;
       const dist = si + 0.5 - (oi + 0.5) * ratio;
-      const wk = lanczos(dist);
+      // sharpness escala la distancia evaluada en el kernel (efecto de nitidez).
+      const wk = lanczos(dist / sharpness);
       w.push(wk);
       sum += wk;
     }

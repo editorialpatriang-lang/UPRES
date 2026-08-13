@@ -6,13 +6,19 @@ export interface ScaleRequest {
   width: number;
   height: number;
   scale: number;
+  sharpness?: number;
 }
 
 self.onmessage = (e: MessageEvent<ScaleRequest>) => {
-  const { rgba, width, height, scale } = e.data;
-  const result = lanczosScale({ rgba, width, height }, scale, (p) => {
-    (self as unknown as Worker).postMessage({ type: "progress", value: p });
-  });
+  const { rgba, width, height, scale, sharpness } = e.data;
+  const result = lanczosScale(
+    { rgba, width, height },
+    scale,
+    (p) => {
+      (self as unknown as Worker).postMessage({ type: "progress", value: p });
+    },
+    sharpness
+  );
   (self as unknown as Worker).postMessage({ type: "done", result });
 };
 
