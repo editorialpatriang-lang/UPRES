@@ -63,18 +63,22 @@ export function lanczosScale(
     // 1) muestreo horizontal: src lineal -> tmp lineal (ow x tileH)
     const tmpH = tyEnd - ty;
     const tmp = new Float32Array(ow * tmpH * 4);
-    for (let yy = ty; yy < tyEnd; yy++) {
-      const sy = wY.map[yy];
-      const rowLocal = yy - ty;
+    // 1) MUESTREO HORIZONTAL: para cada fila de entrada `sy` se produce la fila
+    //    de salida completa (ow columnas) solo a partir de los pixeles de ESA fila.
+    //    NOTA: el bucle interno itera SOLO en X (columnas de entrada). Antes se
+    //    indexaba también en Y (syi = sy.start + k), lo que mezclaba filas y
+    //    producía una imagen recortada/distorsionada en lugar de escalada.
+    for (let sy = 0; sy < h; sy++) {
+      const rowLocal = sy - ty;
+      if (rowLocal < 0 || rowLocal >= tmpH) continue;
       for (let xx = 0; xx < ow; xx++) {
         const sx = wX.map[xx];
         let r = 0, g = 0, b = 0, a = 0, aw = 0;
         for (let k = 0; k < wX.span; k++) {
           const sxi = sx.start + k;
-          const syi = sy.start + k;
-          if (sxi < 0 || sxi >= w || syi < 0 || syi >= h) continue;
+          if (sxi < 0 || sxi >= w) continue;
           const wgt = wX.weights[xx][k];
-          const si = (syi * w + sxi) * 4;
+          const si = (sy * w + sxi) * 4;
           const awgt = wgt * (rgba[si + 3] / 255);
           r += srgbToLinear(rgba[si]) * awgt;
           g += srgbToLinear(rgba[si + 1]) * awgt;
