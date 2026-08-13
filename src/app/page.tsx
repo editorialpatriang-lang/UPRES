@@ -7,15 +7,18 @@ import { loadImageFile, downloadRgba, rgbaToDataUrl } from "@/lib/image";
 import LogoEdipa from "@/components/LogoEdipa";
 import CompareSlider from "@/components/CompareSlider";
 import type { ScaleRequest, ScaleResponse } from "@/workers/scale.worker";
+import type { AiRequest, AiResponse } from "@/workers/ai.worker";
 
 export default function Home() {
   const { image, scale, mode, status, result, error, format, quality, sharpness, compare, setImage, setScale, setMode, setStatus, setResult, setError, setFormat, setQuality, setSharpness, setCompare } =
     useStudioStore();
   const workerRef = useRef<Worker | null>(null);
+  const aiWorkerRef = useRef<Worker | null>(null);
   const [progress, setProgress] = useState(0);
   const [origUrl, setOrigUrl] = useState("");
   const [resultUrl, setResultUrl] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [modelMsg, setModelMsg] = useState("");
 
   useEffect(() => {
     workerRef.current = new Worker(new URL("@/workers/scale.worker.ts", import.meta.url));
@@ -26,7 +29,23 @@ export default function Home() {
         setProgress(1);
       }
     };
-    return () => workerRef.current?.terminate();
+    aiWorkerRef.current = new Worker(new URL("@/workers/ai.worker.ts", import.meta.url));
+    aiWorkerRef.current.onmessage = (e: MessageEvent<AiResponse>) => {
+      if (e.data.type === "progress") setProgress(e.data.value);
+      else if (e.data.type === "done") {
+        setResult(e.data.result);
+        setProgress(1);
+        setModelMsg("");
+      } else if (e.data.type === "error") {
+        setError(e.data.message);
+        setStatus("error");
+        setModelMsg("");
+      }
+    };
+    return () => {
+      workerRef.current?.terminate();
+      aiWorkerRef.current?.terminate();
+    };
   }, [setResult]);
 
   useEffect(() => {
@@ -63,28 +82,35 @@ export default function Home() {
   }, []);
 
   const run = () => {
-    if (!image || mode !== "faithful") return;
+    if (!image) return;
     setStatus("processing");
     setProgress(0);
-    const req: ScaleRequest = {
-      rgba: image.rgba,
-      width: image.width,
-      height: image.height,
-      scale,
-      sharpness,
-    };
-    workerRef.current?.postMessage(req);
+    if (mode === "ai") {
+      setModelMsg("Descargando modelo Real-ESRGAN (una sola vez)…");
+      const req: AiRequest = { rgba: image.rgba, width: image.width, height: image.height };
+      aiWorkerRef.current?.postMessage(req);
+    } else {
+      const req: ScaleRequest = {
+        rgba: image.rgba,
+        width: image.width,
+        height: image.height,
+        scale,
+        sharpness,
+      };
+      workerRef.current?.postMessage(req);
+    }
   };
+
+  const outW = image ? Math.round(image.width * (mode === "ai" ? 4 : scale)) : 0;
+  const outH = image ? Math.round(image.height * (mode === "ai" ? 4 : scale)) : 0;
 
   const onDownload = () => {
-    if (!result) return;
+    if (!result || !image) return;
     const ext = format === "png" ? "png" : format === "webp" ? "webp" : "jpg";
-    const base = (image?.name ?? "upres").replace(/\.[^.]+$/, "");
-    downloadRgba(result, `${base}-upres-${Math.round(image!.width * scale)}x${Math.round(image!.height * scale)}.${ext}`, format, quality);
+    const base = image.name.replace(/\.[^.]+$/, "");
+    const effScale = mode === "ai" ? 4 : scale;
+    downloadRgba(result, `${base}-upres-${Math.round(image.width * effScale)}x${Math.round(image.height * effScale)}.${ext}`, format, quality);
   };
-
-  const outW = image ? Math.round(image.width * scale) : 0;
-  const outH = image ? Math.round(image.height * scale) : 0;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 p-4">
@@ -117,36 +143,42 @@ export default function Home() {
         <div className="flex items-center gap-2">
           <Scale size={16} className="text-[hsl(var(--text-muted))]" />
           <span className="text-sm">Factor</span>
-          <input
-            type="range"
-            min={1.5}
-            max={8}
-            step={0.5}
-            value={scale}
-            onChange={(e) => setScale(Number(e.target.value))}
-            className="w-40"
-          />
-          <span className="w-10 font-mono text-sm">{scale}x</span>
+          {mode === "ai" ? (
+            <span className="w-10 font-mono text-sm">4x</span>
+          ) : (
+            <>
+              <input
+                type="range"
+                min={1.5}
+                max={8}
+                step={0.5}
+                value={scale}
+                onChange={(e) => setScale(Number(e.target.value))}
+                className="w-40"
+              />
+              <span className="w-10 font-mono text-sm">{scale}x</span>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-1 rounded-lg border border-[hsl(var(--border))] p-1">
           <button
             onClick={() => setMode("faithful")}
-            className={`rounded px-3 py-1.5 text-sm ${mode === "faithful" ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-fg))]" : "text-[hsl(var(--text-muted))]"}`}
+            className={`rounded px-3 py-1.5 text-sm ${mode === "faithful" ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-fg))]" : "text-[hsl(var(--text-muted))]"}}`}
           >
             Fiel (Lanczos)
           </button>
           <button
             onClick={() => setMode("ai")}
-            className={`flex items-center gap-1 rounded px-3 py-1.5 text-sm ${mode === "ai" ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-fg))]" : "text-[hsl(var(--text-muted))]"}`}
+            className={`flex items-center gap-1 rounded px-3 py-1.5 text-sm ${mode === "ai" ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-fg))]" : "text-[hsl(var(--text-muted))]"}}`}
           >
-            <Sparkles size={14} /> IA (próximamente)
+            <Sparkles size={14} /> IA (Real-ESRGAN)
           </button>
         </div>
 
         <button
           onClick={run}
-          disabled={!image || status === "processing" || mode !== "faithful"}
+          disabled={!image || status === "processing"}
           className="ml-auto inline-flex items-center gap-2 rounded-lg bg-[hsl(var(--accent))] px-4 py-2 text-sm font-medium text-[hsl(var(--accent-fg))] disabled:opacity-40"
         >
           {status === "processing" ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
@@ -156,8 +188,10 @@ export default function Home() {
 
       {mode === "ai" && (
         <p className="rounded-lg bg-amber-100 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-          El modo IA (Real-ESRGAN) aún no está conectado. Cuando esté listo, reconstruye detalle
-          (no es fiel al original). Por ahora usa el modo Fiel.
+          El modo IA usa <strong>Real-ESRGAN x4</strong> en tu navegador (descarga el modelo una vez,
+          luego funciona sin conexión). Reconstruye detalle, pero no es fiel al original. El factor de
+          salida es fijo 4x.
+          {modelMsg ? ` ${modelMsg}` : ""}
         </p>
       )}
 
