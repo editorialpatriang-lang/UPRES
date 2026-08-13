@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Barre explícitamente el contenido TS/TSX para generar las utilidades.
+   Necesario porque el proyecto usa Tailwind v4 con @tailwindcss/postcss. */
+@source "../**/*.{ts,tsx}";
+
 :root {
   --surface: 0 0% 98%;
   --surface-raised: 0 0% 100%;
