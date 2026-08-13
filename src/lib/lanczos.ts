@@ -60,17 +60,21 @@ export function lanczosScale(
   const tileH = 256;
   for (let ty = 0; ty < oh; ty += tileH) {
     const tyEnd = Math.min(ty + tileH, oh);
-    // 1) muestreo horizontal: src lineal -> tmp lineal (ow x tileH)
-    const tmpH = tyEnd - ty;
-    const tmp = new Float32Array(ow * tmpH * 4);
+    // 1) muestreo horizontal: src lineal -> tmp lineal.
+    //    El buffer tmp abarca el RANGO DE FILAS DE ENTRADA que este tile de salida
+    //    necesita (no el rango de salida), para que el paso vertical las encuentre.
+    //    Si se indexara por fila de salida (ty..tyEnd), en imagenes altas (>256px)
+    //    las filas de entrada fuera de ese rango se descartarian y la imagen
+    //    quedaria CORTADA (negra) en la parte baja.
+    const inStart = Math.max(0, Math.floor(ty / scale) - A);
+    const inEnd = Math.min(h, Math.ceil(tyEnd / scale) + A);
+    const inH = inEnd - inStart;
+    const tmp = new Float32Array(ow * inH * 4);
     // 1) MUESTREO HORIZONTAL: para cada fila de entrada `sy` se produce la fila
     //    de salida completa (ow columnas) solo a partir de los pixeles de ESA fila.
-    //    NOTA: el bucle interno itera SOLO en X (columnas de entrada). Antes se
-    //    indexaba también en Y (syi = sy.start + k), lo que mezclaba filas y
-    //    producía una imagen recortada/distorsionada en lugar de escalada.
-    for (let sy = 0; sy < h; sy++) {
-      const rowLocal = sy - ty;
-      if (rowLocal < 0 || rowLocal >= tmpH) continue;
+    //    El bucle interno itera SOLO en X (columnas de entrada).
+    for (let sy = inStart; sy < inEnd; sy++) {
+      const rowLocal = sy - inStart;
       for (let xx = 0; xx < ow; xx++) {
         const sx = wX.map[xx];
         let r = 0, g = 0, b = 0, a = 0, aw = 0;
@@ -100,8 +104,8 @@ export function lanczosScale(
         let r = 0, g = 0, b = 0, a = 0, aw = 0;
         for (let k = 0; k < wY.span; k++) {
           const syi = sy.start + k;
-          const localRow = syi - ty; // tmp esta indexado por fila local
-          if (localRow < 0 || localRow >= tmpH) continue;
+          const localRow = syi - inStart; // tmp indexado por fila de entrada
+          if (localRow < 0 || localRow >= inH) continue;
           const wgt = wY.weights[yy][k];
           const si = (localRow * ow + xx) * 4;
           const awgt = wgt * (tmp[si + 3] / 255);
